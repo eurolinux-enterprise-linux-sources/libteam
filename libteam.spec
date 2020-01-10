@@ -1,22 +1,15 @@
 Name: libteam
-Version: 1.25
-Release: 6%{?dist}.3
+Version: 1.27
+Release: 4%{?dist}
 Summary: Library for controlling team network device
 Group: System Environment/Libraries
 License: LGPLv2+
 URL: http://www.libteam.org
 Source: http://www.libteam.org/files/libteam-%{version}.tar.gz
-Patch1: libteam-1.25-teamd-LACP-runner-does-not-set-Agg-bit-on-first-slav.patch
-Patch2: libteam-1.25-misc-fix-an-out-of-bound-write-with-zero-length-hard.patch
-Patch3: libteam-1.25-teamd-change-to-Before-network-pre.target-in-systemd.patch
-Patch4: libteam-1.25-teamd-fix-the-issue-that-network-blocks-when-systemc.patch
-Patch5: libteam-1.25-teamd-escape-some-sensitive-characters-in-ifname-wit.patch
-Patch6: libteam-1.25-teamd-check-port-link_up-when-a-port-is-added-with-l.patch
-Patch7: libteam-1.27-teamd-set-correct-bits-for-standby-ports.patch
-Patch8: libteam-teamd-do-not-process-lacpdu-before-the-port-ifinfo-i.patch
-Patch9: libteam-teamd-add-port_hwaddr_changed-for-ab-runner.patch
-Patch10: libteam-teamd-add-port_hwaddr_changed-for-lb-runner.patch
-Patch11: libteam-teamd-add-port_hwaddr_changed-for-lacp-runner.patch
+Patch1: libteam-teamd-do-not-process-lacpdu-before-the-port-ifinfo-i.patch
+Patch2: libteam-teamd-add-port_hwaddr_changed-for-ab-runner.patch
+Patch3: libteam-teamd-add-port_hwaddr_changed-for-lb-runner.patch
+Patch4: libteam-teamd-add-port_hwaddr_changed-for-lacp-runner.patch
 BuildRequires: jansson-devel
 BuildRequires: libdaemon-devel
 BuildRequires: libnl3-devel
@@ -80,7 +73,7 @@ programs that will manipulate team network devices.
 %define _hardened_build 1
 
 %prep
-%autosetup -p 1
+%autosetup -p1
 
 # prepare example dir for -devel
 mkdir -p _tmpdoc1/examples
@@ -161,14 +154,14 @@ python ./setup.py install --root $RPM_BUILD_ROOT -O1
 %{python_sitearch}/*
 
 %changelog
-* Fri Feb 9 2018 Marcelo Ricardo Leitner <mleitner@redhat.com> - 1.25-6.el7_4.3
-- Add port_hwaddr_changed for ab, lb and lacp runners [1544339]
+* Fri Feb 9 2018 Marcelo Ricardo Leitner <mleitner@redhat.com> - 1.27-4
+- Add port_hwaddr_changed for ab, lb and lacp runners [1499063]
 
-* Wed Feb 7 2018 Marcelo Ricardo Leitner <mleitner@redhat.com> - 1.25-5.el7_4.2
-- Added fix to only process LACPDU after port ifinfo is set [1542980]
+* Wed Feb 7 2018 Marcelo Ricardo Leitner <mleitner@redhat.com> - 1.27-3
+- Added fix to only process LACPDU after port ifinfo is set [1493600]
 
-* Wed Aug 30 2017 Marcelo Ricardo Leitner <mleitner@redhat.com> - 1.25-5.el7_4.1
-- Added patch to set correct bits for standby ports [1486130]
+* Mon Aug 21 2017 Xin Long <lxin@redhat.com> - 1.27-2
+- Updated to 1.27 [1445499 1440866 1486935]
 
 * Fri Mar 24 2017 Xin Long <lxin@redhat.com> - 1.25-5
 - Added patch to escape some sensitive characters [1383997]

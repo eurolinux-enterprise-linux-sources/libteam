@@ -1,0 +1,29 @@
+From 04e328303a8c125157459df5ca17b624fb0b5495 Mon Sep 17 00:00:00 2001
+Message-Id: <04e328303a8c125157459df5ca17b624fb0b5495.1543910381.git.lucien.xin@gmail.com>
+In-Reply-To: <e47d5db538736c74473842b57110b71d3844d7e6.1543910381.git.lucien.xin@gmail.com>
+References: <e47d5db538736c74473842b57110b71d3844d7e6.1543910381.git.lucien.xin@gmail.com>
+From: Patrick Talbert <ptalbert@redhat.com>
+Date: Thu, 1 Nov 2018 14:59:02 +0100
+Subject: [PATCH 3/5] man teamd.conf: fix indentation of link_watch.send_always
+
+Signed-off-by: Patrick Talbert <ptalbert@redhat.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+---
+ man/teamd.conf.5 | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/man/teamd.conf.5 b/man/teamd.conf.5
+index a252042..c4672bf 100644
+--- a/man/teamd.conf.5
++++ b/man/teamd.conf.5
+@@ -354,6 +354,7 @@ Default:
+ .TP
+ .BR "link_watch.send_always "| " ports.PORTIFNAME.link_watch.send_always " (bool)
+ By default, ARP requests are sent on active ports only. This option allows sending even on inactive ports.
++.RS 7
+ .PP
+ Default:
+ .BR "false"
+-- 
+2.1.0
+

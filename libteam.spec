@@ -1,6 +1,6 @@
 Name: libteam
 Version: 1.27
-Release: 6%{?dist}.1
+Release: 9%{?dist}
 Summary: Library for controlling team network device
 Group: System Environment/Libraries
 License: LGPLv2+
@@ -14,7 +14,13 @@ Patch5: libteam-man-fix-runner.sys_prio-default.patch
 Patch6: libteam-configure.ac-Empty-LDFLAGS-before-checking-for-libnl.patch
 Patch7: libteam-libteam-don-t-crash-when-trying-to-print-unregistere.patch
 Patch8: libteam-teamd-add-port_master_ifindex_changed-for-teamd_even.patch
-Patch9: libteam-teamd-lacp-update-port-state-according-to-partner-s-.patch
+Patch9: libteam-teamd-add-an-option-to-force-log-output-to-stdout-st.patch
+Patch10:libteam-libteam-options-fix-s32-u32-data-storage-on-big-endi.patch
+Patch11:libteam-man-teamd.conf-fix-indentation-of-link_watch.send_al.patch
+Patch12:libteam-man-teamd.conf-Document-ARP-Ping-link_watch.vlanid-o.patch
+Patch13:libteam-teamd-lacp-send-LACPDU-when-port-state-transitions-f.patch
+Patch14:libteam-teamd-lacp-update-port-state-according-to-partner-s-.patch
+Patch15:libteam-libteam-double-NETLINK_RCVBUF-to-fix-ENOMEM-error.patch
 BuildRequires: jansson-devel
 BuildRequires: libdaemon-devel
 BuildRequires: libnl3-devel
@@ -161,8 +167,17 @@ python ./setup.py install --root $RPM_BUILD_ROOT -O1
 %{python_sitearch}/*
 
 %changelog
-* Thu Mar 14 2019 Xin Long <lxin@redhat.com> - 1.27-6.el7_6.1
-- Added patch to update port state according to partner's sync bit [1689254]
+* Mon May 06 2019 Xin Long <lxin@redhat.com> - 1.27-9
+- Added patch to double NETLINK_RCVBUF to fix -ENOMEM error [1689774]
+
+* Fri Mar 15 2019 Xin Long <lxin@redhat.com> - 1.27-8
+- Added patch to update port state according to partner's sync bit [1645292]
+
+* Tue Dec 11 2018 Xin Long <lxin@redhat.com> - 1.27-7
+- Added an option to force log output to stdout, stderr or syslog [1596917]
+- Fixed s32/u32 data storage on big endian [1545574]
+- Documented ARP Ping link_watch.vlanid option [1645169]
+- Sent LACPDU when port state transitions from DEFAULT to CURRENT [1645169]
 
 * Fri Aug 17 2018 Xin Long <lxin@redhat.com> - 1.27-6
 - Added patch to fix the issue that no active port is set [1593241]

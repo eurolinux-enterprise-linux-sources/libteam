@@ -1,0 +1,37 @@
+From 42257eb7f2db4d86e6af6cdf467848d518149c2c Mon Sep 17 00:00:00 2001
+Message-Id: <42257eb7f2db4d86e6af6cdf467848d518149c2c.1543910381.git.lucien.xin@gmail.com>
+In-Reply-To: <e47d5db538736c74473842b57110b71d3844d7e6.1543910381.git.lucien.xin@gmail.com>
+References: <e47d5db538736c74473842b57110b71d3844d7e6.1543910381.git.lucien.xin@gmail.com>
+From: Patrick Talbert <ptalbert@redhat.com>
+Date: Thu, 1 Nov 2018 14:59:20 +0100
+Subject: [PATCH 4/5] man teamd.conf: Document ARP Ping link_watch.vlanid
+ option
+
+Signed-off-by: Patrick Talbert <ptalbert@redhat.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+---
+ man/teamd.conf.5 | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/man/teamd.conf.5 b/man/teamd.conf.5
+index c4672bf..9bdf46a 100644
+--- a/man/teamd.conf.5
++++ b/man/teamd.conf.5
+@@ -352,6 +352,14 @@ Default:
+ .BR "false"
+ .RE
+ .TP
++.BR "link_watch.vlanid "| " ports.PORTIFNAME.link_watch.vlanid " (int)
++By default, ARP requests are sent without VLAN tags. This option causes outgoing ARP requests to be sent with the specified VLAN ID number.
++.RS 7
++.PP
++Default:
++.BR "None"
++.RE
++.TP
+ .BR "link_watch.send_always "| " ports.PORTIFNAME.link_watch.send_always " (bool)
+ By default, ARP requests are sent on active ports only. This option allows sending even on inactive ports.
+ .RS 7
+-- 
+2.1.0
+

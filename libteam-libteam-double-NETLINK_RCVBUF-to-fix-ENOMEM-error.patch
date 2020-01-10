@@ -1,0 +1,43 @@
+From 21bdbb95a70e182dc7d3d8cafc04c52090c34ce3 Mon Sep 17 00:00:00 2001
+Message-Id: <21bdbb95a70e182dc7d3d8cafc04c52090c34ce3.1557136181.git.lucien.xin@gmail.com>
+From: Jon Maxwell <jmaxwell37@gmail.com>
+Date: Tue, 23 Apr 2019 09:42:13 +1000
+Subject: [PATCH] libteam: double NETLINK_RCVBUF to fix -ENOMEM error
+
+v1: Change 96k to 192k in the comments
+
+We are seeing the following errors on some systems configured for LACP:
+
+eth0: Failed to set "priority".
+Loop callback failed with: Cannot allocate memory
+Failed loop callback: libteam_events, 0x
+
+The slave is then rejected and does not become part of the team. We debugged
+this down to -ENOMEM netlink error getting returned by nl_recvmsgs()called
+by send_and_recv(). Doubling the buffer size fixed the problem.
+
+Signed-off-by: Jon Maxwell <jmaxwell37@gmail.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+---
+ libteam/libteam.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libteam/libteam.c b/libteam/libteam.c
+index ce0467e..0065a7f 100644
+--- a/libteam/libteam.c
++++ b/libteam/libteam.c
+@@ -551,9 +551,9 @@ int team_destroy(struct team_handle *th)
+ /* \endcond */
+ 
+ /* libnl uses default 32k socket receive buffer size,
+- * whicn can get too small. Use 96k for all sockets.
++ * which can get too small. Use 192k for all sockets.
+  */
+-#define NETLINK_RCVBUF 98304
++#define NETLINK_RCVBUF 196608
+ 
+ /**
+  * @param th		libteam library context
+-- 
+2.18.1
+

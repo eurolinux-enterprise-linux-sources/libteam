@@ -1,0 +1,65 @@
+From 003266c7c3063cff52f94a0c82d8bfb8891e9385 Mon Sep 17 00:00:00 2001
+Message-Id: <003266c7c3063cff52f94a0c82d8bfb8891e9385.1471442548.git.mleitner@redhat.com>
+From: Lubomir Rintel <lkundrak@v3.sk>
+Date: Thu, 7 Jul 2016 17:09:01 +0200
+Subject: [PATCH] misc: fix an out-of-bound write with zero-length hardware
+ address
+
+In case a device without a MAC address (such as tun) is enslaved, the team
+master looses its MAC address too. Don't let that confuse teamd state
+dump.
+
+  ==32459== Invalid write of size 1
+  ==32459==    at 0x409C32: hwaddr_str (misc.h:62)
+  ==32459==    by 0x409C32: a_hwaddr_str (misc.h:77)
+  ==32459==    by 0x409C32: ifinfo_state_dev_addr_get (teamd_state.c:518)
+  ==32459==    by 0x409A16: teamd_state_val_dump (teamd_state.c:237)
+  ==32459==    by 0x40A53A: teamd_state_vals_dump (teamd_state.c:280)
+  ==32459==    by 0x40A53A: teamd_state_dump (teamd_state.c:459)
+  ==32459==    by 0x40E1D5: teamd_ctl_method_state_dump (teamd_ctl.c:186)
+  ==32459==    by 0x40F35F: process_rcv_msg (teamd_usock.c:197)
+  ==32459==    by 0x40F35F: callback_usock_acc_conn (teamd_usock.c:219)
+  ==32459==    by 0x40550F: teamd_run_loop_do_callbacks (teamd.c:325)
+  ==32459==    by 0x40550F: teamd_run_loop_run (teamd.c:405)
+  ==32459==    by 0x4070A9: teamd_start (teamd.c:1528)
+  ==32459==    by 0x4070A9: main (teamd.c:1847)
+  ==32459==  Address 0x851a2bf is 1 bytes before a block of size 1 alloc'd
+  ==32459==    at 0x4C2BBAD: malloc (vg_replace_malloc.c:299)
+  ==32459==    by 0x409BF4: a_hwaddr_str (misc.h:74)
+  ==32459==    by 0x409BF4: ifinfo_state_dev_addr_get (teamd_state.c:518)
+  ==32459==    by 0x409A16: teamd_state_val_dump (teamd_state.c:237)
+  ==32459==    by 0x40A53A: teamd_state_vals_dump (teamd_state.c:280)
+  ==32459==    by 0x40A53A: teamd_state_dump (teamd_state.c:459)
+  ==32459==    by 0x40E1D5: teamd_ctl_method_state_dump (teamd_ctl.c:186)
+  ==32459==    by 0x40F35F: process_rcv_msg (teamd_usock.c:197)
+  ==32459==    by 0x40F35F: callback_usock_acc_conn (teamd_usock.c:219)
+  ==32459==    by 0x40550F: teamd_run_loop_do_callbacks (teamd.c:325)
+  ==32459==    by 0x40550F: teamd_run_loop_run (teamd.c:405)
+  ==32459==    by 0x4070A9: teamd_start (teamd.c:1528)
+  ==32459==    by 0x4070A9: main (teamd.c:1847)
+
+Signed-off-by: Lubomir Rintel <lkundrak@v3.sk>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+Signed-off-by: Marcelo Ricardo Leitner <mleitner@redhat.com>
+---
+ include/private/misc.h | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/include/private/misc.h b/include/private/misc.h
+index 73383dda0280c350961aa3556a0d68b8b1f94ffc..ac2a747cc84d32f4ca3ae4d094f5e38d89b91973 100644
+--- a/include/private/misc.h
++++ b/include/private/misc.h
+@@ -59,7 +59,9 @@ static inline void hwaddr_str(char *str, char *hwaddr, size_t len)
+ 		sprintf(str, "%02x:", (unsigned char) hwaddr[i]);
+ 		str += 3;
+ 	}
+-	*(str - 1) = '\0';
++	if (len)
++		str--;
++	*str = '\0';
+ }
+ 
+ static inline size_t hwaddr_str_len(size_t len)
+-- 
+2.7.4
+

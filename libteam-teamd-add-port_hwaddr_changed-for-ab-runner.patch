@@ -1,0 +1,159 @@
+From efaa6ae709bb4b59efacb0bb7301be2242b058bc Mon Sep 17 00:00:00 2001
+Message-Id: <efaa6ae709bb4b59efacb0bb7301be2242b058bc.1518205291.git.mleitner@redhat.com>
+From: Xin Long <lucien.xin@gmail.com>
+Date: Fri, 20 Oct 2017 12:35:07 +0800
+Subject: [PATCH 1/3] teamd: add port_hwaddr_changed for ab runner
+
+This patch to fix an events processing race issue when adding two ports
+into one team dev with ab mode with same_all hwaddr policy:
+
+team0 original hwaddr: 00:00:00:00:00:0a
+port1 original hwaddr: 00:00:00:00:00:01
+port2 original hwaddr: 00:00:00:00:00:02
+
+There are two sockets in teamd: nl_cli.sock_event for ifinfo updates
+and nl_sock_event for ports/options changes. During adding two ports,
+the events on these two sockets could be:
+
+nl_sock_event:
+  [1] -- [2] --
+
+[1]: port1 added event (added by enslaving port1)
+[2]: port2 added event (added by enslaving port2)
+
+nl_cli.sock_event:
+  [a1] -- [b0] -- [c1] -- [d2] -- [e2] -- [f1] --
+
+[a1]: port1 ifinfo event (added by setting port1's master)
+[b0]: team0 ifinfo event (added by setting team0's hwaddr)
+[c1]: port1 ifinfo event (added by set port1's hwaddr)
+[d2]: port2 ifinfo event (added by set port2's master)
+[e2]: port2 ifinfo event (added by set port2's hwaddr)
+[f1]: port1 ifinfo event (added by set port1's hwaddr)
+
+teamd can make sure the order for their processing is as above on the
+same socket, but not between two sockets. So if these events processing
+order is (monitoring team/ports' ifinfo, hwaddr, master):
+
+[ 1]: team0->ifinfo = 00:00:00:00:00:0a
+      team0->hwaddr = 00:00:00:00:00:01
+      port1->hwaddr = 00:00:00:00:00:0a
+[a1]: port1->ifinfo = 00:00:00:00:00:01
+      port1->master = team0
+[ 2]: port2->ifinfo = 00:00:00:00:00:02
+      port2->hwaddr = 00:00:00:00:00:0a
+     (team0->ifinfo is not updated, it's still 00:00:00:00:00:0a)
+[b0]: team0->ifinfo = 00:00:00:00:00:01
+      port1->hwaddr = 00:00:00:00:00:01
+     (port2->master is not yet set, port2->hwaddr couldn't be updated)
+[c1]: no changes
+[d2]: port2->ifinfo = 00:00:00:00:00:0a
+      port2->master = team0
+     (too late !!!)
+[e2]: no changes
+[f1]: no changes
+
+Then:
+team0 final hwaddr: 00:00:00:00:00:01
+port1 final hwaddr: 00:00:00:00:00:01
+port2 final hwaddr: 00:00:00:00:00:0a <----- issue
+
+This patch is to add port_hwaddr_changed for ab runner, in [e2] where
+we set it's hwaddr with team0 (port2->hwaddr = 00:00:00:00:00:01) IF
+port2->hwaddr != team0->ifinfo.
+
+I think the same issue also exists in lacp and lb mode for which I will
+fix them in another patches.
+
+v1 -> v2:
+  fix some typos in changelog and couple of style problems in codes
+
+Reported-by: Jon Nikolakakis <jnikolak@redhat.com>
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+Signed-off-by: Marcelo Ricardo Leitner <mleitner@redhat.com>
+---
+ teamd/teamd_runner_activebackup.c | 39 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 39 insertions(+)
+
+diff --git a/teamd/teamd_runner_activebackup.c b/teamd/teamd_runner_activebackup.c
+index aec3a73d5ff61534c377b935fe0e5bc1f51af79d..8a3447f1a63d71055eb7a8784cbe96381ee2b451 100644
+--- a/teamd/teamd_runner_activebackup.c
++++ b/teamd/teamd_runner_activebackup.c
+@@ -39,6 +39,8 @@ struct ab_hwaddr_policy {
+ 	const char *name;
+ 	int (*hwaddr_changed)(struct teamd_context *ctx,
+ 			      struct ab *ab);
++	int (*port_hwaddr_changed)(struct teamd_context *ctx, struct ab *ab,
++				   struct teamd_port *tdport);
+ 	int (*port_added)(struct teamd_context *ctx, struct ab *ab,
+ 			  struct teamd_port *tdport);
+ 	int (*active_set)(struct teamd_context *ctx, struct ab *ab,
+@@ -95,6 +97,26 @@ static int ab_hwaddr_policy_same_all_hwaddr_changed(struct teamd_context *ctx,
+ 	return 0;
+ }
+ 
++static int
++ab_hwaddr_policy_same_all_port_hwaddr_changed(struct teamd_context *ctx,
++					      struct ab *ab,
++					      struct teamd_port *tdport)
++{
++	int err;
++
++	if (!memcmp(team_get_ifinfo_hwaddr(tdport->team_ifinfo),
++		    ctx->hwaddr, ctx->hwaddr_len))
++		return 0;
++
++	err = team_hwaddr_set(ctx->th, tdport->ifindex, ctx->hwaddr,
++			      ctx->hwaddr_len);
++	if (err)
++		teamd_log_err("%s: Failed to set port hardware address.",
++			      tdport->ifname);
++
++	return err;
++}
++
+ static int ab_hwaddr_policy_same_all_port_added(struct teamd_context *ctx,
+ 						struct ab *ab,
+ 						struct teamd_port *tdport)
+@@ -114,6 +136,7 @@ static int ab_hwaddr_policy_same_all_port_added(struct teamd_context *ctx,
+ static const struct ab_hwaddr_policy ab_hwaddr_policy_same_all = {
+ 	.name = "same_all",
+ 	.hwaddr_changed = ab_hwaddr_policy_same_all_hwaddr_changed,
++	.port_hwaddr_changed = ab_hwaddr_policy_same_all_port_hwaddr_changed,
+ 	.port_added = ab_hwaddr_policy_same_all_port_added,
+ };
+ 
+@@ -411,6 +434,21 @@ static int ab_event_watch_hwaddr_changed(struct teamd_context *ctx, void *priv)
+ 	return 0;
+ }
+ 
++static int ab_event_watch_port_hwaddr_changed(struct teamd_context *ctx,
++					      struct teamd_port *tdport,
++					      void *priv)
++{
++	struct ab *ab = priv;
++
++	if (!teamd_port_present(ctx, tdport))
++		return 0;
++
++	if (ab->hwaddr_policy->port_hwaddr_changed)
++		return ab->hwaddr_policy->port_hwaddr_changed(ctx, ab, tdport);
++
++	return 0;
++}
++
+ static int ab_port_load_config(struct teamd_context *ctx,
+ 			       struct ab_port *ab_port)
+ {
+@@ -491,6 +529,7 @@ static int ab_event_watch_prio_option_changed(struct teamd_context *ctx,
+ 
+ static const struct teamd_event_watch_ops ab_event_watch_ops = {
+ 	.hwaddr_changed = ab_event_watch_hwaddr_changed,
++	.port_hwaddr_changed = ab_event_watch_port_hwaddr_changed,
+ 	.port_added = ab_event_watch_port_added,
+ 	.port_link_changed = ab_event_watch_port_link_changed,
+ 	.option_changed = ab_event_watch_prio_option_changed,
+-- 
+2.14.3
+

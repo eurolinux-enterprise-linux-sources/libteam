@@ -1,0 +1,58 @@
+From 0164b6a460728b3a1fd3feee9e2901f1b810cf24 Mon Sep 17 00:00:00 2001
+Message-Id: <0164b6a460728b3a1fd3feee9e2901f1b810cf24.1518205291.git.mleitner@redhat.com>
+In-Reply-To: <efaa6ae709bb4b59efacb0bb7301be2242b058bc.1518205291.git.mleitner@redhat.com>
+References: <efaa6ae709bb4b59efacb0bb7301be2242b058bc.1518205291.git.mleitner@redhat.com>
+From: Xin Long <lucien.xin@gmail.com>
+Date: Tue, 7 Nov 2017 12:33:11 +0800
+Subject: [PATCH 2/3] teamd: add port_hwaddr_changed for lb runner
+
+To fix the same issue fixed in commit efaa6ae709bb ("teamd: add
+port_hwaddr_changed for ab runner") for lb runner, this patch is
+to add .port_hwaddr_changed for lb runner as well.
+
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+Signed-off-by: Marcelo Ricardo Leitner <mleitner@redhat.com>
+---
+ teamd/teamd_runner_loadbalance.c | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/teamd/teamd_runner_loadbalance.c b/teamd/teamd_runner_loadbalance.c
+index a1e21303455fde55763b57b898ac5aaeb21c4b61..b9bfc13895b1a47d3e5cf552e6c720601c475d97 100644
+--- a/teamd/teamd_runner_loadbalance.c
++++ b/teamd/teamd_runner_loadbalance.c
+@@ -87,8 +87,31 @@ static int lb_event_watch_hwaddr_changed(struct teamd_context *ctx, void *priv)
+ 	return 0;
+ }
+ 
++static int lb_event_watch_port_hwaddr_changed(struct teamd_context *ctx,
++					      struct teamd_port *tdport,
++					      void *priv)
++{
++	int err;
++
++	if (!teamd_port_present(ctx, tdport))
++		return 0;
++
++	if (!memcmp(team_get_ifinfo_hwaddr(tdport->team_ifinfo),
++		    ctx->hwaddr, ctx->hwaddr_len))
++		return 0;
++
++	err = team_hwaddr_set(ctx->th, tdport->ifindex, ctx->hwaddr,
++			      ctx->hwaddr_len);
++	if (err)
++		teamd_log_err("%s: Failed to set port hardware address.",
++			      tdport->ifname);
++
++	return err;
++}
++
+ static const struct teamd_event_watch_ops lb_port_watch_ops = {
+ 	.hwaddr_changed = lb_event_watch_hwaddr_changed,
++	.port_hwaddr_changed = lb_event_watch_port_hwaddr_changed,
+ 	.port_added = lb_event_watch_port_added,
+ 	.port_removed = lb_event_watch_port_removed,
+ 	.port_link_changed = lb_event_watch_port_link_changed,
+-- 
+2.14.3
+

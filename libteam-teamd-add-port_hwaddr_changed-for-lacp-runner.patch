@@ -1,0 +1,66 @@
+From c42cc9955a93bc4bed65adf9a506f92b8df290d7 Mon Sep 17 00:00:00 2001
+Message-Id: <c42cc9955a93bc4bed65adf9a506f92b8df290d7.1518205291.git.mleitner@redhat.com>
+In-Reply-To: <efaa6ae709bb4b59efacb0bb7301be2242b058bc.1518205291.git.mleitner@redhat.com>
+References: <efaa6ae709bb4b59efacb0bb7301be2242b058bc.1518205291.git.mleitner@redhat.com>
+From: Xin Long <lucien.xin@gmail.com>
+Date: Tue, 7 Nov 2017 12:33:36 +0800
+Subject: [PATCH 3/3] teamd: add port_hwaddr_changed for lacp runner
+
+To fix the same issue fixed in commit efaa6ae709bb ("teamd: add
+port_hwaddr_changed for ab runner") for lacp runner, this patch
+is to add .port_hwaddr_changed for lacp runner as well.
+
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+Signed-off-by: Marcelo Ricardo Leitner <mleitner@redhat.com>
+---
+ teamd/teamd_runner_lacp.c | 26 ++++++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+diff --git a/teamd/teamd_runner_lacp.c b/teamd/teamd_runner_lacp.c
+index 1310f6737f6cf37b7d6fef0befb8c803178212bd..7b8f0a783cfd71aa3f8a89276f5b95bce2fc517a 100644
+--- a/teamd/teamd_runner_lacp.c
++++ b/teamd/teamd_runner_lacp.c
+@@ -1336,6 +1336,31 @@ static int lacp_event_watch_hwaddr_changed(struct teamd_context *ctx,
+ 	return 0;
+ }
+ 
++static int lacp_event_watch_port_hwaddr_changed(struct teamd_context *ctx,
++						struct teamd_port *tdport,
++						void *priv)
++{
++	struct lacp_port *lacp_port;
++	struct lacp *lacp = priv;
++	int err;
++
++	if (!teamd_port_present(ctx, tdport))
++		return 0;
++
++	if (!memcmp(team_get_ifinfo_hwaddr(tdport->team_ifinfo),
++		    ctx->hwaddr, ctx->hwaddr_len))
++		return 0;
++
++	err = lacp_port_set_mac(ctx, tdport);
++	if (err)
++		return err;
++
++	lacp_port = lacp_port_get(lacp, tdport);
++	lacp_port_actor_system_update(lacp_port);
++
++	return 0;
++}
++
+ static int lacp_event_watch_admin_state_changed(struct teamd_context *ctx,
+ 					        void *priv)
+ {
+@@ -1389,6 +1414,7 @@ static int lacp_event_watch_port_changed(struct teamd_context *ctx,
+ 
+ static const struct teamd_event_watch_ops lacp_event_watch_ops = {
+ 	.hwaddr_changed = lacp_event_watch_hwaddr_changed,
++	.port_hwaddr_changed = lacp_event_watch_port_hwaddr_changed,
+ 	.port_added = lacp_event_watch_port_added,
+ 	.port_removed = lacp_event_watch_port_removed,
+ 	.port_changed = lacp_event_watch_port_changed,
+-- 
+2.14.3
+

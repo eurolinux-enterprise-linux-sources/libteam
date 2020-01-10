@@ -1,0 +1,46 @@
+From 3d1e9efa37976fce3546e343a948a582da1dd203 Mon Sep 17 00:00:00 2001
+Message-Id: <3d1e9efa37976fce3546e343a948a582da1dd203.1504127899.git.mleitner@redhat.com>
+From: Xin Long <lucien.xin@gmail.com>
+Date: Thu, 27 Apr 2017 01:44:41 +0800
+Subject: [PATCH] teamd: set correct bits for standby ports
+
+Patrick reported an issue that Collecting & Distributing & Synchronization
+bits shouldn't be set in LACPDUs for the ports associated with standby agg.
+It would also cause team to work differently from bonding.
+
+Jamie and Patrick concluded from section 5.6.1 of IEEE 802.1AX-2008:
+  - Standby ports MAY set Collecting and Distributing bits
+  - Standby ports MUST NOT set Synchronization bit
+
+This patch is to fix it by setting these three sits only when the selected
+ports associated with a selected agg.
+
+Reported-by: Patrick Talbert <ptalbert@redhat.com>
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+Signed-off-by: Marcelo Ricardo Leitner <mleitner@redhat.com>
+---
+ teamd/teamd_runner_lacp.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/teamd/teamd_runner_lacp.c b/teamd/teamd_runner_lacp.c
+index 9c77faeb3c2abfb46841e3bad306aa066de8a90e..5601278696a9f263f6bfe71642b2db971c9314b9 100644
+--- a/teamd/teamd_runner_lacp.c
++++ b/teamd/teamd_runner_lacp.c
+@@ -913,9 +913,10 @@ static void lacp_port_actor_update(struct lacp_port *lacp_port)
+ 		state |= INFO_STATE_LACP_ACTIVITY;
+ 	if (lacp_port->lacp->cfg.fast_rate)
+ 		state |= INFO_STATE_LACP_TIMEOUT;
+-	if (lacp_port_selected(lacp_port))
+-		state |= INFO_STATE_SYNCHRONIZATION;
+-	state |= INFO_STATE_COLLECTING | INFO_STATE_DISTRIBUTING;
++	if (lacp_port_selected(lacp_port) &&
++	    lacp_port_agg_selected(lacp_port))
++		state |= INFO_STATE_SYNCHRONIZATION |
++			 INFO_STATE_COLLECTING | INFO_STATE_DISTRIBUTING;
+ 	if (lacp_port->state == PORT_STATE_EXPIRED)
+ 		state |= INFO_STATE_EXPIRED;
+ 	if (lacp_port->state == PORT_STATE_DEFAULTED)
+-- 
+2.9.5
+

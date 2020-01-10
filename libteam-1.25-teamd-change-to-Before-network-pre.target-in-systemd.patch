@@ -1,0 +1,42 @@
+From 0641375d10d692e3dacaeec95e36f2525b95881d Mon Sep 17 00:00:00 2001
+Message-Id: <0641375d10d692e3dacaeec95e36f2525b95881d.1471442555.git.mleitner@redhat.com>
+From: Xin Long <lucien.xin@gmail.com>
+Date: Sat, 16 Jul 2016 18:02:39 +0800
+Subject: [PATCH] teamd: change to Before=network-pre.target in systemd service
+ file
+
+Commit 2d240e58e073 ("teamd: add Before=network.target to systemd
+service file") wants teamd to be stopped after network service is
+stopped when system shutdown.
+
+But 'Before=network-pre.target' doesn't actually work on that case.
+'network-pre.target' is introduced in systemd to make it possible
+to explicitly order things before networking is started (or stop
+after networking has been stopped).
+
+So this patch changes it to Before=network-pre.target.
+
+Fixes: 2d240e58e073 ("teamd: add Before=network.target to systemd service file")
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+Signed-off-by: Marcelo Ricardo Leitner <mleitner@redhat.com>
+---
+ teamd/redhat/systemd/teamd@.service | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/teamd/redhat/systemd/teamd@.service b/teamd/redhat/systemd/teamd@.service
+index 3a39a266d4fd1f53940237aceceb5817377501bc..3f9f638382567960510ca120dbf80a5dae8be6cf 100644
+--- a/teamd/redhat/systemd/teamd@.service
++++ b/teamd/redhat/systemd/teamd@.service
+@@ -1,6 +1,7 @@
+ [Unit]
+ Description=Team Daemon for device %I
+-Before=network.target
++Before=network-pre.target
++Wants=network-pre.target
+ 
+ [Service]
+ BusName=org.libteam.teamd.%i
+-- 
+2.7.4
+

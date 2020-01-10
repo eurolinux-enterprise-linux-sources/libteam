@@ -1,0 +1,191 @@
+From b6f63db7f3c8eb3119c9449abe9ac6535965e14d Mon Sep 17 00:00:00 2001
+Message-Id: <b6f63db7f3c8eb3119c9449abe9ac6535965e14d.1534505146.git.lucien.xin@gmail.com>
+From: Hangbin Liu <liuhangbin@gmail.com>
+Date: Wed, 8 Aug 2018 16:56:52 +0800
+Subject: [PATCHv2] teamd: add port_master_ifindex_changed for
+ teamd_event_watch_ops
+
+When we add port to new active-backup teams with multi threads. After
+the port is set to link up and trigger function obj_input_newlink(),
+it's possible that there is no master index in rtnl link info. So the
+team slave's master_ifindex is not updated.
+
+On the other hand, the port is up and trigger functions like
+- teamd_link_watch_check_link_up()
+  - teamd_event_port_link_changed()
+    - ab_event_watch_port_link_changed()
+      - ab_link_watch_handler()
+        - teamd_for_each_tdport()
+	  - teamd_get_next_tdport()
+	    - teamd_port_present()
+
+Here the teamd_port_present() failed as the port master ifindex is not
+update to team ifindex yet. Finally we get nothing and no active port
+is set.
+
+Here is the reproducer:
+
+\#bin/bash
+if [ -z $1 ] || [ -z $2 ]; then
+	echo "Usage: $0 iface1 iface2"
+	exit 1
+else
+	iface1=$1
+	iface2=$2
+fi
+
+WAIT=2
+COUNT=0
+
+start_team()
+{
+	local num=$1
+	local iface=$2
+	teamd -o -n -U -d -t team$num -c '{"runner": {"name": "activebackup"},"link_watch": {"name": "ethtool"}}' -gg
+	teamdctl team$num port add $iface
+}
+
+while :; do
+	echo "-----------------------------------------------------------"
+	let "COUNT++"
+	echo "Loop $COUNT"
+
+	teamd -k -t team1
+	teamd -k -t team2
+	sleep "$WAIT"
+	start_team 1 $iface1 &
+	start_team 2 $iface2 &
+	sleep "$WAIT"
+
+	if teamdctl team1 state | grep -q "active port: $iface1" && \
+		teamdctl team2 state | grep -q "active port: $iface2"; then
+		echo "Pass"
+        else
+		echo "FAIL"
+		exit 1
+        fi
+done
+
+Failure as follows:
+
+]# teamdctl teamX state dump
+    "runner": {
+        "active_port": ""
+    },
+
+Currently we only reproduced this with active-backup mode(I could reproduce it
+in VM easily, but hard to reproduce it on physical machines).
+
+Fix it by adding a new teamd_event_watch_ops port_master_ifindex_changed for
+active-backup mode.
+
+V2: update commit description from Jamie Bainbridge's reply.
+v3: update description and reproducer.
+
+Signed-off-by: Hangbin Liu <liuhangbin@gmail.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+---
+ teamd/teamd.h                     |  5 +++++
+ teamd/teamd_events.c              | 19 +++++++++++++++++++
+ teamd/teamd_ifinfo_watch.c        |  5 +++++
+ teamd/teamd_runner_activebackup.c |  8 ++++++++
+ 4 files changed, 37 insertions(+)
+
+diff --git a/teamd/teamd.h b/teamd/teamd.h
+index 5dbfb9b..3934fc2 100644
+--- a/teamd/teamd.h
++++ b/teamd/teamd.h
+@@ -189,6 +189,9 @@ struct teamd_event_watch_ops {
+ 				   struct teamd_port *tdport, void *priv);
+ 	int (*port_ifname_changed)(struct teamd_context *ctx,
+ 				   struct teamd_port *tdport, void *priv);
++	int (*port_master_ifindex_changed)(struct teamd_context *ctx,
++					   struct teamd_port *tdport,
++					   void *priv);
+ 	int (*option_changed)(struct teamd_context *ctx,
+ 			      struct team_option *option, void *priv);
+ 	char *option_changed_match_name;
+@@ -208,6 +211,8 @@ int teamd_event_ifinfo_hwaddr_changed(struct teamd_context *ctx,
+ 				      struct team_ifinfo *ifinfo);
+ int teamd_event_ifinfo_ifname_changed(struct teamd_context *ctx,
+ 				      struct team_ifinfo *ifinfo);
++int teamd_event_ifinfo_master_ifindex_changed(struct teamd_context *ctx,
++					      struct team_ifinfo *ifinfo);
+ int teamd_event_ifinfo_admin_state_changed(struct teamd_context *ctx,
+ 					   struct team_ifinfo *ifinfo);
+ int teamd_events_init(struct teamd_context *ctx);
+diff --git a/teamd/teamd_events.c b/teamd/teamd_events.c
+index 1a95974..65aa46a 100644
+--- a/teamd/teamd_events.c
++++ b/teamd/teamd_events.c
+@@ -167,6 +167,25 @@ int teamd_event_ifinfo_ifname_changed(struct teamd_context *ctx,
+ 	return 0;
+ }
+ 
++int teamd_event_ifinfo_master_ifindex_changed(struct teamd_context *ctx,
++					      struct team_ifinfo *ifinfo)
++{
++	struct event_watch_item *watch;
++	uint32_t ifindex = team_get_ifinfo_ifindex(ifinfo);
++	struct teamd_port *tdport = teamd_get_port(ctx, ifindex);
++	int err;
++
++	list_for_each_node_entry(watch, &ctx->event_watch_list, list) {
++		if (watch->ops->port_master_ifindex_changed && tdport) {
++			err = watch->ops->port_master_ifindex_changed(ctx, tdport,
++								      watch->priv);
++			if (err)
++				return err;
++		}
++	}
++	return 0;
++}
++
+ int teamd_event_ifinfo_admin_state_changed(struct teamd_context *ctx,
+ 					   struct team_ifinfo *ifinfo)
+ {
+diff --git a/teamd/teamd_ifinfo_watch.c b/teamd/teamd_ifinfo_watch.c
+index f334ff6..6a19532 100644
+--- a/teamd/teamd_ifinfo_watch.c
++++ b/teamd/teamd_ifinfo_watch.c
+@@ -59,6 +59,11 @@ static int ifinfo_change_handler_func(struct team_handle *th, void *priv,
+ 			if (err)
+ 				return err;
+ 		}
++		if (team_is_ifinfo_master_ifindex_changed(ifinfo)) {
++			err = teamd_event_ifinfo_master_ifindex_changed(ctx, ifinfo);
++			if (err)
++				return err;
++		}
+ 	}
+ 	return 0;
+ }
+diff --git a/teamd/teamd_runner_activebackup.c b/teamd/teamd_runner_activebackup.c
+index 8a3447f..f92d341 100644
+--- a/teamd/teamd_runner_activebackup.c
++++ b/teamd/teamd_runner_activebackup.c
+@@ -520,6 +520,13 @@ static int ab_event_watch_port_link_changed(struct teamd_context *ctx,
+ 	return ab_link_watch_handler(ctx, priv);
+ }
+ 
++static int ab_event_watch_port_master_ifindex_changed(struct teamd_context *ctx,
++						      struct teamd_port *tdport,
++						      void *priv)
++{
++	return ab_link_watch_handler(ctx, priv);
++}
++
+ static int ab_event_watch_prio_option_changed(struct teamd_context *ctx,
+ 					      struct team_option *option,
+ 					      void *priv)
+@@ -532,6 +539,7 @@ static const struct teamd_event_watch_ops ab_event_watch_ops = {
+ 	.port_hwaddr_changed = ab_event_watch_port_hwaddr_changed,
+ 	.port_added = ab_event_watch_port_added,
+ 	.port_link_changed = ab_event_watch_port_link_changed,
++	.port_master_ifindex_changed = ab_event_watch_port_master_ifindex_changed,
+ 	.option_changed = ab_event_watch_prio_option_changed,
+ 	.option_changed_match_name = "priority",
+ };
+-- 
+2.1.0
+

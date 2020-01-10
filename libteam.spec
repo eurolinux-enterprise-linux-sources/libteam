@@ -1,6 +1,6 @@
 Name: libteam
 Version: 1.27
-Release: 5%{?dist}
+Release: 6%{?dist}.1
 Summary: Library for controlling team network device
 Group: System Environment/Libraries
 License: LGPLv2+
@@ -13,6 +13,8 @@ Patch4: libteam-teamd-add-port_hwaddr_changed-for-lacp-runner.patch
 Patch5: libteam-man-fix-runner.sys_prio-default.patch
 Patch6: libteam-configure.ac-Empty-LDFLAGS-before-checking-for-libnl.patch
 Patch7: libteam-libteam-don-t-crash-when-trying-to-print-unregistere.patch
+Patch8: libteam-teamd-add-port_master_ifindex_changed-for-teamd_even.patch
+Patch9: libteam-teamd-lacp-update-port-state-according-to-partner-s-.patch
 BuildRequires: jansson-devel
 BuildRequires: libdaemon-devel
 BuildRequires: libnl3-devel
@@ -159,6 +161,12 @@ python ./setup.py install --root $RPM_BUILD_ROOT -O1
 %{python_sitearch}/*
 
 %changelog
+* Thu Mar 14 2019 Xin Long <lxin@redhat.com> - 1.27-6.el7_6.1
+- Added patch to update port state according to partner's sync bit [1689254]
+
+* Fri Aug 17 2018 Xin Long <lxin@redhat.com> - 1.27-6
+- Added patch to fix the issue that no active port is set [1593241]
+
 * Fri May 18 2018 Xin Long <lxin@redhat.com> - 1.27-5
 - Added patch to fix runner.sys_prio default in man docs [1533813]
 - Added patch to empty LDFLAGS before checking for libnl3 in configure.ac [1533847]

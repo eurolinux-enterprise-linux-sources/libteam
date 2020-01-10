@@ -1,0 +1,109 @@
+From 05a7a9598fc9e616a1acf19096aeb93f7288bb35 Mon Sep 17 00:00:00 2001
+Message-Id: <05a7a9598fc9e616a1acf19096aeb93f7288bb35.1526634690.git.lucien.xin@gmail.com>
+In-Reply-To: <789591c7318a0423984037b6a8ba3f3925f4eaa7.1526634690.git.lucien.xin@gmail.com>
+References: <789591c7318a0423984037b6a8ba3f3925f4eaa7.1526634690.git.lucien.xin@gmail.com>
+From: Antti Tiainen <atiainen@forcepoint.com>
+Date: Thu, 3 May 2018 20:13:35 +0300
+Subject: [PATCHv2 3/3] libteam: don't crash when trying to print unregistered
+ device name
+
+team_port_str() will crash when trying to print port name that was
+just unregistered, if dellink event is handled before port removal
+event.
+
+This is regression from Commit 046fb6ba0aec ("libteam: resynchronize
+ifinfo after lost RTNLGRP_LINK notifications"), which made it free
+all removed interfaces after ifinfo handlers are called.
+
+Put the ifinfo_destroy_removed() back to dellink/newlink handlers as
+it was before that commit. Clean up the ifinfo list after change handlers
+only if it refreshed the entire ifinfo list after lost events.
+
+There's still a rare possibility that dellink event is missed due to
+full socket receive buffer, which would cause ifinfo refresh and clearing
+removed interfaces. For this, add NULL check to team_port_str() so it
+doesn't try to print port device name in this situation.
+
+Signed-off-by: Antti Tiainen <atiainen@forcepoint.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+---
+ include/team.h      | 1 +
+ libteam/ifinfo.c    | 7 ++++++-
+ libteam/libteam.c   | 2 +-
+ libteam/stringify.c | 3 ++-
+ 4 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/include/team.h b/include/team.h
+index 9ae517d..b31c8d8 100644
+--- a/include/team.h
++++ b/include/team.h
+@@ -223,6 +223,7 @@ enum {
+ 	TEAM_PORT_CHANGE	= 0x1,
+ 	TEAM_OPTION_CHANGE	= 0x2,
+ 	TEAM_IFINFO_CHANGE	= 0x4,
++	TEAM_IFINFO_REFRESH	= 0x8,
+ 	TEAM_ANY_CHANGE		= TEAM_PORT_CHANGE |
+ 				  TEAM_OPTION_CHANGE |
+ 				  TEAM_IFINFO_CHANGE,
+diff --git a/libteam/ifinfo.c b/libteam/ifinfo.c
+index 5c32a9c..46d56a2 100644
+--- a/libteam/ifinfo.c
++++ b/libteam/ifinfo.c
+@@ -258,6 +258,8 @@ static void obj_input_newlink(struct nl_object *obj, void *arg, bool event)
+ 	uint32_t ifindex;
+ 	int err;
+ 
++	ifinfo_destroy_removed(th);
++
+ 	link = (struct rtnl_link *) obj;
+ 
+ 	ifindex = rtnl_link_get_ifindex(link);
+@@ -294,6 +296,8 @@ static void event_handler_obj_input_dellink(struct nl_object *obj, void *arg)
+ 	uint32_t ifindex;
+ 	int err;
+ 
++	ifinfo_destroy_removed(th);
++
+ 	link = (struct rtnl_link *) obj;
+ 
+ 	ifindex = rtnl_link_get_ifindex(link);
+@@ -412,7 +416,8 @@ int get_ifinfo_list(struct team_handle *th)
+ 		}
+ 	}
+ 
+-	ret = check_call_change_handlers(th, TEAM_IFINFO_CHANGE);
++	ret = check_call_change_handlers(th, TEAM_IFINFO_CHANGE |
++					     TEAM_IFINFO_REFRESH);
+ 	if (ret < 0)
+ 		err(th, "get_ifinfo_list: check_call_change_handers failed");
+ 	return ret;
+diff --git a/libteam/libteam.c b/libteam/libteam.c
+index 77a06dd..ce0467e 100644
+--- a/libteam/libteam.c
++++ b/libteam/libteam.c
+@@ -236,7 +236,7 @@ int check_call_change_handlers(struct team_handle *th,
+ 				break;
+ 		}
+ 	}
+-	if (call_type_mask & TEAM_IFINFO_CHANGE) {
++	if (call_type_mask & TEAM_IFINFO_REFRESH) {
+ 		ifinfo_destroy_removed(th);
+ 		ifinfo_clear_changed(th);
+ 	}
+diff --git a/libteam/stringify.c b/libteam/stringify.c
+index 38f4788..f1faf90 100644
+--- a/libteam/stringify.c
++++ b/libteam/stringify.c
+@@ -344,7 +344,8 @@ static bool __team_port_str(struct team_port *port,
+ 			    team_is_port_removed(port) ? "-" :
+ 				team_is_port_changed(port) ? "*" : " ",
+ 			    ifindex,
+-			    team_get_ifinfo_ifname(ifinfo),
++			    ifinfo ? team_get_ifinfo_ifname(ifinfo) :
++				"(removed)",
+ 			    team_is_port_link_up(port) ? "up": "down",
+ 			    team_get_port_speed(port),
+ 			    team_get_port_duplex(port) ? "FD" : "HD");
+-- 
+2.1.0
+

@@ -1,0 +1,43 @@
+From 789591c7318a0423984037b6a8ba3f3925f4eaa7 Mon Sep 17 00:00:00 2001
+Message-Id: <789591c7318a0423984037b6a8ba3f3925f4eaa7.1526634690.git.lucien.xin@gmail.com>
+From: Francesco Giudici <fgiudici@redhat.com>
+Date: Thu, 18 Jan 2018 18:21:52 +0100
+Subject: [PATCHv2 1/3] man: fix runner.sys_prio default
+
+runner.sys_prio default is 65535, not 255.
+255 is actually the default value of ports.PORTIFNAME.lacp_prio.
+
+Signed-off-by: Francesco Giudici <fgiudici@redhat.com>
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+---
+ man/teamd.conf.5 | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/man/teamd.conf.5 b/man/teamd.conf.5
+index 0545023..dc5000e 100644
+--- a/man/teamd.conf.5
++++ b/man/teamd.conf.5
+@@ -229,7 +229,7 @@ System priority, value can be 0 \(en 65535.
+ .RS 7
+ .PP
+ Default:
+-.BR "255"
++.BR "65535"
+ .RE
+ .TP
+ .BR "runner.min_ports " (int)
+@@ -269,6 +269,11 @@ Default:
+ .TP
+ .BR "ports.PORTIFNAME.lacp_prio " (int)
+ Port priority according to LACP standard. The lower number means higher priority.
++.RS 7
++.PP
++Default:
++.BR "255"
++.RE
+ .TP
+ .BR "ports.PORTIFNAME.lacp_key " (int)
+ Port key according to LACP standard. It is only possible to aggregate ports with the same key.
+-- 
+2.1.0
+

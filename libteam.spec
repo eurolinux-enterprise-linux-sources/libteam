@@ -1,6 +1,6 @@
 Name: libteam
 Version: 1.27
-Release: 4%{?dist}
+Release: 5%{?dist}
 Summary: Library for controlling team network device
 Group: System Environment/Libraries
 License: LGPLv2+
@@ -10,6 +10,9 @@ Patch1: libteam-teamd-do-not-process-lacpdu-before-the-port-ifinfo-i.patch
 Patch2: libteam-teamd-add-port_hwaddr_changed-for-ab-runner.patch
 Patch3: libteam-teamd-add-port_hwaddr_changed-for-lb-runner.patch
 Patch4: libteam-teamd-add-port_hwaddr_changed-for-lacp-runner.patch
+Patch5: libteam-man-fix-runner.sys_prio-default.patch
+Patch6: libteam-configure.ac-Empty-LDFLAGS-before-checking-for-libnl.patch
+Patch7: libteam-libteam-don-t-crash-when-trying-to-print-unregistere.patch
 BuildRequires: jansson-devel
 BuildRequires: libdaemon-devel
 BuildRequires: libnl3-devel
@@ -17,6 +20,7 @@ BuildRequires: python-devel
 BuildRequires: dbus-devel
 BuildRequires: swig
 BuildRequires: doxygen
+BuildRequires: autoconf automake libtool
 
 %description
 This package contains a library which is a user-space
@@ -74,6 +78,7 @@ programs that will manipulate team network devices.
 
 %prep
 %autosetup -p1
+autoreconf --force --install -I m4
 
 # prepare example dir for -devel
 mkdir -p _tmpdoc1/examples
@@ -154,6 +159,11 @@ python ./setup.py install --root $RPM_BUILD_ROOT -O1
 %{python_sitearch}/*
 
 %changelog
+* Fri May 18 2018 Xin Long <lxin@redhat.com> - 1.27-5
+- Added patch to fix runner.sys_prio default in man docs [1533813]
+- Added patch to empty LDFLAGS before checking for libnl3 in configure.ac [1533847]
+- Added patch to not crash when trying to print unregistered device name [1563155]
+
 * Fri Feb 9 2018 Marcelo Ricardo Leitner <mleitner@redhat.com> - 1.27-4
 - Add port_hwaddr_changed for ab, lb and lacp runners [1499063]
 
